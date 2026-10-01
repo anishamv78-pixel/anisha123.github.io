@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volunteer Hours Log</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: Arial, sans-serif; background: #f3f4f6; color: #222;
+  }
+  .wrap { max-width: 1000px; margin: 30px auto; padding: 0 16px; }
+  .card {
+    background: white; border: 1px solid #ddd; border-radius: 14px;
+    padding: 24px; margin-bottom: 18px; box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  h1 { margin: 0 0 6px; font-size: 30px; }
+  h2 { margin-top: 0; }
+  .note { color: #555; margin-top: 0; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  label { display:block; font-weight: 600; margin-bottom: 6px; }
+  input, textarea {
+    width:100%; padding:10px; border:1px solid #bbb; border-radius:8px; font:inherit;
+  }
+  textarea { min-height: 80px; resize: vertical; }
+  .full { grid-column: 1 / -1; }
+  button {
+    border: 0; border-radius: 8px; padding: 11px 16px; font-weight: 700;
+    cursor:pointer; margin: 6px 6px 0 0;
+  }
+  .primary { background:#222; color:white; }
+  .secondary { background:#e5e7eb; color:#222; }
+  .danger { background:#eee; color:#9b1c1c; }
+  .total { font-size: 24px; font-weight: 700; margin-top: 14px; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; margin-top:10px; }
+  th, td { border-bottom:1px solid #ddd; padding:10px 8px; text-align:left; vertical-align:top; }
+  th { background:#f7f7f7; }
+  .small { font-size:13px; color:#666; }
+  .verification { border-top:1px solid #ddd; margin-top:18px; padding-top:18px; }
+  @media(max-width:700px) { .grid { grid-template-columns:1fr; } .full { grid-column:auto; } }
+  @media print {
+    body { background:white; }
+    .no-print { display:none !important; }
+    .card { border:0; box-shadow:none; padding:0; }
+    .wrap { margin:0; max-width:none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Volunteer Hours Log</h1>
+    <p class="note">Student-created volunteer-hours record. Use this to record service dates, times, activities, and supervisor information.</p>
+
+    <div class="grid">
+      <div>
+        <label for="student">Student Name</label>
+        <input id="student" placeholder="First and last name">
+      </div>
+      <div>
+        <label for="school">School</label>
+        <input id="school" value="Chaboya High School">
+      </div>
+      <div>
+        <label for="site">Volunteer Organization / Site</label>
+        <input id="site" placeholder="Organization or location">
+      </div>
+      <div>
+        <label for="supervisor">Supervisor Name</label>
+        <input id="supervisor" placeholder="Supervisor's name">
+      </div>
+    </div>
+  </div>
+
+  <div class="card no-print">
+    <h2>Add Volunteer Hours</h2>
+    <div class="grid">
+      <div>
+        <label for="date">Date</label>
+        <input id="date" type="date">
+      </div>
+      <div>
+        <label for="break">Break (minutes)</label>
+        <input id="break" type="number" min="0" value="0">
+      </div>
+      <div>
+        <label for="start">Start Time</label>
+        <input id="start" type="time">
+      </div>
+      <div>
+        <label for="end">End Time</label>
+        <input id="end" type="time">
+      </div>
+      <div class="full">
+        <label for="description">Description of Volunteer Work</label>
+        <textarea id="description" placeholder="Describe what you did during your service."></textarea>
+      </div>
+    </div>
+    <button class="primary" onclick="addEntry()">Add Volunteer Hours</button>
+    <button class="secondary" onclick="window.print()">Print / Save as PDF</button>
+    <button class="danger" onclick="clearLog()">Clear Log</button>
+  </div>
+
+  <div class="card">
+    <h2>Volunteer Hours</h2>
+    <div class="table-wrap">
+      <table id="hoursTable">
+        <thead>
+          <tr>
+            <th>Date</th><th>Organization / Site</th><th>Start</th><th>End</th>
+            <th>Total Hours</th><th>Description</th><th>Supervisor</th><th class="no-print">Remove</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="total">Total Volunteer Hours: <span id="total">0.00</span></div>
+
+    <div class="verification">
+      <h2>Supervisor Verification</h2>
+      <p>I verify that the volunteer service recorded above was completed as stated.</p>
+      <div class="grid">
+        <div>
+          <label for="signature">Supervisor Signature</label>
+          <input id="signature" placeholder="Signature">
+        </div>
+        <div>
+          <label for="verifyDate">Date</label>
+          <input id="verifyDate" type="date">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card small">
+    <strong>Important:</strong> This is not an official Chaboya High School or ESUHSD form.
+    The school office should confirm that this format is acceptable for recording school service hours.
+  </div>
+</div>
+
+<script>
+let entries = JSON.parse(localStorage.getItem("volunteerHoursEntries") || "[]");
+
+function calcHours(start, end, breakMin) {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  let minutes = (eh * 60 + em) - (sh * 60 + sm);
+  if (minutes < 0) minutes += 24 * 60;
+  minutes -= Number(breakMin || 0);
+  return Math.max(0, minutes / 60);
+}
+
+function save() {
+  localStorage.setItem("volunteerHoursEntries", JSON.stringify(entries));
+}
+
+function addEntry() {
+  const date = document.getElementById("date").value;
+  const start = document.getElementById("start").value;
+  const end = document.getElementById("end").value;
+  if (!date || !start || !end) {
+    alert("Please enter the date, start time, and end time.");
+    return;
+  }
+  const entry = {
+    date,
+    site: document.getElementById("site").value,
+    start,
+    end,
+    hours: calcHours(start, end, document.getElementById("break").value),
+    description: document.getElementById("description").value,
+    supervisor: document.getElementById("supervisor").value
+  };
+  entries.push(entry);
+  save();
+  render();
+  document.getElementById("date").value = "";
+  document.getElementById("start").value = "";
+  document.getElementById("end").value = "";
+  document.getElementById("description").value = "";
+  document.getElementById("break").value = "0";
+}
+
+function removeEntry(i) {
+  entries.splice(i, 1);
+  save();
+  render();
+}
+
+function render() {
+  const tbody = document.querySelector("#hoursTable tbody");
+  tbody.innerHTML = "";
+  let total = 0;
+  entries.forEach((e, i) => {
+    total += Number(e.hours);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${e.date}</td>
+      <td>${escapeHtml(e.site)}</td>
+      <td>${e.start}</td>
+      <td>${e.end}</td>
+      <td>${Number(e.hours).toFixed(2)}</td>
+      <td>${escapeHtml(e.description)}</td>
+      <td>${escapeHtml(e.supervisor)}</td>
+      <td class="no-print"><button class="danger" onclick="removeEntry(${i})">Remove</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById("total").textContent = total.toFixed(2);
+}
+
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
+
+function clearLog() {
+  if (confirm("Clear all recorded volunteer hours?")) {
+    entries = [];
+    save();
+    render();
+  }
+}
+
+render();
+</script>
+</body>
+</html>
